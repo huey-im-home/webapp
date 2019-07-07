@@ -1,87 +1,165 @@
 <template>
   <div id="light-controls">
-    <h1>Lights</h1>
+    <h1>Rooms</h1>
+    <div class="hue-groups">
+      <div class="hue-group"
+           v-for="(group, groupId) in groups"
+           v-if="groupId === '1' && group.lights.length > 0"
+           :key="groupId">
+        <p>{{group.name}}</p>
 
-    <div class="hue-group"
-         v-for="(group, groupId) in groups"
-         v-if="group.lights.length > 0"
-    >
-      <h2>{{ group.name }}</h2>
-      <input type="range"
-             min="0"
-             max="101"
-             step="10"
-             v-on:input="onGroupRangeChange($event, groupId)">
+        <light-control
+
+            :state="groups[groupId].action"
+            @onstatechange="onGroupChange(groupId, $event)"
+        />
+      </div>
+
     </div>
+
   </div>
 </template>
 
 <script lang="ts">
-  import { Component, Vue } from 'vue-property-decorator';
+  import {Component, Vue, Watch} from 'vue-property-decorator';
+  import { debounce } from 'ts-debounce';
   import jsHue from 'jshue';
+  import {HueState} from '@/hue-api/HueState';
+  import HueBridge from '@/hue-api/HueBridge';
+
   const hue = jsHue();
-  @Component({
-  })
+  @Component
   export default class LightControls extends Vue {
-    private bridge: any = null;
+    private debouceRateMs: number = 500; // Throttle/Debouce rate in millis
+    private pollRateMs: number = 2000; // API Long Poll rate in millis
+    private bridge?: HueBridge;
     private lights: any = {}; // Will be keyed by Group ID
     private groups: any = {}; // Will be keyed by Light ID
 
-    private isUpdateInProgress: boolean = false;
+    private getGroupsTimeoutHandle: number|undefined;
+    private getLightsTimeoutHandle: number|undefined;
 
+    // Wrap setGroupState() in a debouncer to avoid spamming the bridge on update
+    private setGroupStateDebounced: any = debounce(this.setGroupState, this.debouceRateMs);
+
+    /**
+     * Vue LIFECYCLE METHODS
+     */
     private mounted(): void {
       // Grab the current Bridge and check that we still have access to it
-      if (this.$store.getters.currentBridgeUser == null) {
-        // We don't have a valid config, go back to the setup page
-        this.$router.replace('/');
+      if (!this.checkValidBridgeUser()) {
         return;
       }
 
-      this.bridge = hue.bridge(this.$store.getters.currentBridgeUser.ip)
-        .user(this.$store.getters.currentBridgeUser.username);
+      this.bridge = new HueBridge(
+        this.$store.getters.currentBridgeUser.ip,
+        this.$store.getters.currentBridgeUser.username,
+      );
 
       // Get our initial data from the bridge
-      this.getGroups();
-      this.getLights();
+      this.startLongPolling(true);
     }
 
+    private beforeDestroy(): void {
+      // Clear any long poll timers
+      this.stopLongPolling();
+    }
+
+    @Watch('$store.getters.currentBridgeUser')
+    private checkValidBridgeUser(): boolean {
+      if (this.$store.getters.currentBridgeUser == null) {
+        // We don't have a valid config, go back to the setup page
+        this.$router.replace('/');
+        return false;
+      }
+
+      return true;
+    }
+    /**
+     * INSTANCE METHODS
+     */
+
+    // Handler for the hue-group ongroupchange event
+    private onGroupChange(groupId: string, state: HueState): void {
+      this.groups[groupId].action = state;
+      // Cancel long polling so it doesn't incorrectly update the group/light state while we are changing it.
+      // We will resume it in the debouce handler
+      this.stopLongPolling();
+      this.setGroupStateDebounced(groupId, state);
+    }
+
+    private setGroupState(groupId: string, state: HueState) {
+      console.log('setGroupState', groupId, state);
+      // Update the bridge with the new value
+      if (this.bridge) {
+        this.bridge.setGroupState(groupId, state);
+      }
+
+      this.startLongPolling(false);
+    }
+
+    /**
+     * HELPER METHODS
+     */
     // Fetch all Groups from the Bridge
     private getGroups(): void {
-      this.bridge.getGroups()
-        .then((groups: any) => {
-          this.groups = groups;
-        })
-        .catch((error: Error) => {
-          // @TODO: Should we kick the user back to the setup page?
-          console.error('Failed to get Groups: ', error);
-        });
+      if (this.bridge) {
+        this.bridge.getGroups()
+          .then((groups: any) => {
+            this.groups = groups;
+            // We want to 'watch' the groups..
+            this.getGroupsTimeoutHandle = setTimeout(this.getGroups, this.pollRateMs);
+          })
+          .catch((error: Error) => {
+            console.error('Failed to get Groups: ', error);
+            this.logoutCurrentBridge();
+          });
+      }
     }
 
     // Fetch all Groups from the Bridge
     private getLights(): void {
-      this.bridge.getLights()
-        .then((lights: any) => {
-          this.lights = lights;
-        })
-        .catch((error: Error) => {
-          // @TODO: Should we kick the user back to the setup page?
-          console.error('Failed to get Lights: ', error);
-        });
+      if (this.bridge) {
+        this.bridge.getLights()
+          .then((lights: any) => {
+            this.lights = lights;
+            // We want to 'watch' the lights..
+            this.getLightsTimeoutHandle = setTimeout(this.getLights, this.pollRateMs);
+          })
+          .catch((error: Error) => {
+            console.error('Failed to get Lights: ', error);
+            this.logoutCurrentBridge();
+          });
+      }
     }
 
-    private onGroupRangeChange($event: any, groupId: string): void {
-      // if (this.isUpdateInProgress) return; // Prevent spamming the bridge
+    private logoutCurrentBridge(): void {
+      this.$store.dispatch('logoutCurrentBridge');
+    }
 
-      this.isUpdateInProgress = true;
 
-      const brightness: number = Math.round(254 * (parseInt($event.target.value, 10) / 100));
-      this.bridge.setGroupState(groupId, {bri: brightness}).then((result: any) => {
-        this.isUpdateInProgress = false;
-      });
+    /**
+     * Start the Group and Light long pollers
+     * @param immediate - Immediately fire the functions?
+     */
+    private startLongPolling(immediate: boolean): void {
+      this.getGroupsTimeoutHandle = setTimeout(this.getGroups, immediate ? 0 : this.pollRateMs);
+      this.getLightsTimeoutHandle = setTimeout(this.getLights, immediate ? 0 : this.pollRateMs);
+    }
+
+    private stopLongPolling(): void {
+      clearTimeout(this.getGroupsTimeoutHandle);
+      clearTimeout(this.getLightsTimeoutHandle);
     }
   }
 </script>
 
 <style lang="scss" scoped>
-
+  .hue-groups {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .hue-group {
+    padding: 10px;
+  }
 </style>

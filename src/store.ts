@@ -21,6 +21,9 @@ export default new Vuex.Store({
     SET_USER(state: any, payload: any) {
       Vue.set(state.users, payload.id, payload.username);
     },
+    UNSET_USER(state: any, id: string) {
+      Vue.delete(state.users, id);
+    },
     SET_CURRENT_BRIDGE(state: any, bridge: object) {
       state.currentBridge = bridge;
     },
@@ -38,6 +41,14 @@ export default new Vuex.Store({
         id: payload.id, // Bridge ID
         username: payload.username, // The username returned by the bridge
       });
+    },
+
+    logoutCurrentBridge(store): void {
+      // Remove the auth settings for the current bridge
+      if (store.state.currentBridge != null) {
+        store.commit('UNSET_USER', store.state.currentBridge.id);
+        store.commit('SET_CURRENT_BRIDGE', null);
+      }
     },
   },
   getters: {

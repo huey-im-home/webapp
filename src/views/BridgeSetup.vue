@@ -16,22 +16,12 @@
 </template>
 
 <script lang="ts">
-  import { Component, Vue } from 'vue-property-decorator';
-  import jsHue from 'jshue';
+  import {Component, Watch, Vue} from 'vue-property-decorator';
+  import HueBridge from '@/hue-api/HueBridge';
 
-  const hue = jsHue();
-  @Component({
-    watch: {
-      '$store.state.currentBridge'() {
-        if (this.$store.state.currentBridge != null) {
-          console.log('READY - GO TO MAIN SECTION!');
-          this.$router.replace('lights');
-        }
-      },
-    },
-  })
+  @Component
   export default class BridgeSetup extends Vue {
-    private bridges: any[] = [];
+    private bridges: HueBridge[] = [];
     private manualBridgeIp: string = '';
 
     private mounted(): void {
@@ -39,17 +29,25 @@
       this.searchForBridges();
     }
 
+    @Watch('$store.state.currentBridge')
+    private onCurrentBridgeChange(): void {
+      if (this.$store.state.currentBridge != null) {
+        console.log('READY - GO TO MAIN SECTION!');
+        this.$router.replace('lights');
+      }
+    }
+
     private searchForBridges(): void {
       console.info('Searching for bridges..');
-      hue.discover().then((bridges: any[]) => {
+      HueBridge.discover().then((bridges: HueBridge[]) => {
         this.bridges = bridges;
         // If a found bridge matches a previously authenticated bridge, immediately pick it as the candidate.
         for (const bridge of bridges) {
           // Not we use Bridge ID for auto detected bridges, or the bridge IP for manually entered bridges.
-          if (this.$store.state.users[bridge.id.toLowerCase()] !== undefined) {
+          if (bridge.id !== undefined && this.$store.state.users[bridge.id.toLowerCase()] !== undefined) {
             // Use this bridge as the current bridge
             this.$store.dispatch('setCurrentBridge', {
-              id: bridge.id.toLowerCase(),
+              id: bridge.id,
               ip: bridge.internalipaddress,
             });
           }
@@ -70,36 +68,23 @@
         return;
       }
 
+      // @TODO: CHECK THAT AN EXISTING CONFIG DOESNT ALREADY EXIST!
+
+
       // Attempt to create a new user on the Bridge
-      const bridge = hue.bridge(bridgeIp);
-      bridge.createUser('com.heuyimhome/abc')
-        .then((response: any) => {
-          if (response.length && response[0].success) {
-            // Successfully created new user.
-            const username = response[0].success.username;
-            // Get the config from the Bridge to make sure we have the bridge ID.
-            bridge.user(this.$store.state.users[bridge.id])
-              .getConfig()
-              .then((config: any) => {
-                // We now have the Bridge ID and username, add them to the Store.
-                const bridgeId = config.bridgeid.toLowerCase();
-                this.$store.dispatch('setUser', {
-                  id: bridgeId,
-                  username,
-                });
+      const bridge = new HueBridge(bridgeIp);
+      bridge.createUser('com.heuyimhome')
+        .then(() => {
+          this.$store.dispatch('setUser', {
+            id: bridge.id,
+            username: bridge.username,
+          });
 
-                // Set the current Bridge ID as well so that we can start using the Bridge
-                this.$store.dispatch('setCurrentBridge', {
-                  id: bridgeId,
-                  ip: bridgeIp,
-                });
-              });
-
-          } else {
-            // FAILED TO CREATE USER!
-            // @TODO: Handle Error nicely on the UI
-            console.error('Could not connect to Bridge: Please press link button');
-          }
+          // Set the current Bridge ID as well so that we can start using the Bridge
+          this.$store.dispatch('setCurrentBridge', {
+            id: bridge.id,
+            ip: bridgeIp,
+          });
         })
         .catch((error: Error) => {
           // Unknown error... could be network related?
