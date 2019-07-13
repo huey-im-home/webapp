@@ -4,7 +4,7 @@
     <div class="hue-groups">
       <div class="hue-group"
            v-for="(group, groupId) in groups"
-           v-if="groupId === '1' && group.lights.length > 0"
+           v-if="group.lights.length > 0"
            :key="groupId">
         <p>{{group.name}}</p>
 
@@ -23,14 +23,12 @@
 <script lang="ts">
   import {Component, Vue, Watch} from 'vue-property-decorator';
   import { debounce } from 'ts-debounce';
-  import jsHue from 'jshue';
   import {HueState} from '@/hue-api/HueState';
   import HueBridge from '@/hue-api/HueBridge';
 
-  const hue = jsHue();
   @Component
   export default class LightControls extends Vue {
-    private debouceRateMs: number = 500; // Throttle/Debouce rate in millis
+    private debounceRateMs: number = 400; // Throttle/debounce rate in millis
     private pollRateMs: number = 2000; // API Long Poll rate in millis
     private bridge?: HueBridge;
     private lights: any = {}; // Will be keyed by Group ID
@@ -40,7 +38,7 @@
     private getLightsTimeoutHandle: number|undefined;
 
     // Wrap setGroupState() in a debouncer to avoid spamming the bridge on update
-    private setGroupStateDebounced: any = debounce(this.setGroupState, this.debouceRateMs);
+    private setGroupStateDebounced: any = debounce(this.setGroupState, this.debounceRateMs);
 
     /**
      * Vue LIFECYCLE METHODS
@@ -81,15 +79,19 @@
 
     // Handler for the hue-group ongroupchange event
     private onGroupChange(groupId: string, state: HueState): void {
-      this.groups[groupId].action = state;
+      // Merge in the updated values
+      this.groups[groupId].action = {
+        ...this.groups[groupId].action,
+        ...state,
+      };
       // Cancel long polling so it doesn't incorrectly update the group/light state while we are changing it.
-      // We will resume it in the debouce handler
+      // We will resume it in the debounce handler
       this.stopLongPolling();
       this.setGroupStateDebounced(groupId, state);
     }
 
     private setGroupState(groupId: string, state: HueState) {
-      console.log('setGroupState', groupId, state);
+      // console.log('setGroupState', groupId, state);
       // Update the bridge with the new value
       if (this.bridge) {
         this.bridge.setGroupState(groupId, state);
@@ -158,8 +160,10 @@
   .hue-groups {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
   }
   .hue-group {
     padding: 10px;
+    flex-grow: 1;
   }
 </style>

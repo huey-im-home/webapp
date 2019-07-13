@@ -11,6 +11,7 @@ export interface HueState {
   alert?: string;
   effect?: string;
   transitiontime?: number;
+  colormode?: string;
 
   // groups/rooms //
   scene?: string;
