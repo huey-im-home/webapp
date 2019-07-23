@@ -49,7 +49,6 @@
     @Watch('$store.state.currentBridge')
     private onCurrentBridgeChange(): void {
       if (this.$store.state.currentBridge != null) {
-        console.log('READY - GO TO MAIN SECTION!');
         this.$router.replace('lights');
       }
     }

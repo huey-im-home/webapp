@@ -1,15 +1,15 @@
 <template>
-  <div class="light-control">
-    <p>{{title}}</p>
+  <div class="light-control" :class="{vertical: isVertical, horizontal: !isVertical}">
+    <p class="title">{{title}}</p>
     <vue-slider v-model="data.bri"
-                direction="btt"
-                height="400px"
+                :direction="isVertical ? 'btt' : 'ltr'"
+                :height="isVertical ? '400px' : null"
                 :min="0"
                 :max="254"
                 :tooltipFormatter="tooltipFormatter"
                 :processStyle="{
-                  backgroundImage: gradientString
-                }"
+                backgroundImage: gradientString
+              }"
                 @change="onRangeInput"
     />
 
@@ -23,7 +23,7 @@
     <div v-if="data.xy !== undefined"
          class="color-picker-toggle"
          v-on:click="showPickerOverlay">
-      <v-icon name="palette" scale="2.4" />
+      <v-icon name="palette" scale="2" />
     </div>
 
     <transition name="fade">
@@ -53,6 +53,9 @@
 
     @Prop({default: ''})
     private title?: string;
+
+    @Prop({default: false})
+    private isVertical?: boolean;
 
     private showColorPicker: boolean = false;
 
@@ -95,7 +98,11 @@
     }
 
     get gradientString(): string {
-      return `linear-gradient(${this.rgbString}, #CCC)`;
+      if (this.isVertical) {
+        return `linear-gradient(${this.rgbString}, #CCC)`;
+      }
+      return `linear-gradient(to left, ${this.rgbString}, #CCC)`;
+
     }
 
     get colorPickerOptions(): any {
@@ -169,19 +176,53 @@
 <style lang="scss" scoped>
   .light-control {
     padding: 0 5px;
+
+    &.horizontal {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      .title {
+        flex: 1;
+        order: 1;
+        text-align: left;
+      }
+      .vue-js-switch {
+        flex: 0;
+        order: 3;
+        padding-right: 0;
+      }
+      .vue-slider {
+        width: 100% !important;
+        order: 4;
+      }
+      .color-picker-toggle {
+        flex: 0;
+        order: 2;
+      }
+    }
   }
 </style>
 <style lang="scss">
   .vue-slider {
-    margin: 0 auto 20px auto;
+
     border-radius: 40px;
-    width: 40px !important;
-    padding: 20px 0 !important;
+    padding: 0 20px !important;
     background-color: #CCC;
     box-sizing: border-box;
+
+    &.vue-slider-ltr {
+      height: 40px !important;
+    }
+    &.vue-slider-btt {
+      margin: 0 auto 10px auto;
+      width: 40px !important;
+      padding: 20px 0 !important;
+      .vue-slider-rail {
+        width: 40px;
+      }
+    }
   }
   .vue-slider-rail {
-    width: 40px;
     border-radius: 40px;
   }
   .vue-slider-process {
@@ -201,8 +242,10 @@
     }
   }
 
+  .vue-js-switch {
+    padding: 10px;
+  }
   .color-picker-toggle {
-    margin-top: 10px;
     padding: 10px;
     cursor: pointer;
     transition: color 0.3s;

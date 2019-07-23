@@ -1,8 +1,9 @@
 <template>
-    <div class="light-group">
+    <div class="light-group" :class="{vertical: isVertical, horizontal: !isVertical}">
         <light-control
                 :title="group.name"
                 :state="group.action"
+                :is-vertical="isVertical"
                 v-if="!showLights"
                 @onstatechange="onGroupChange"
         />
@@ -16,6 +17,7 @@
                 <light-control
                         :title="light.name"
                         :state="light.state"
+                        :is-vertical="isVertical"
                         @onstatechange="onLightChange(lightId, $event)"
                 />
             </div>
@@ -41,6 +43,9 @@
 
         @Prop({default: {}})
         private lights: any;
+
+        @Prop({default: false})
+        private isVertical?: boolean;
 
         private showLights: boolean = false;
 
@@ -74,8 +79,32 @@
         }
     }
 
-    .single-lights {
+    .light-group.horizontal {
         display: flex;
-        justify-content: center;
+        .single-light {
+            margin-bottom: 10px;
+        }
+        .light-toggle {
+            flex: 0;
+            order: 0;
+            margin-bottom: 0;
+            margin-right: 10px;
+            margin-top: 60px;
+            height: 40px;
+        }
+
+        .single-lights,
+        .light-control {
+            flex: 1;
+            order: 1;
+        }
     }
+
+    .light-group.vertical {
+        .single-lights {
+            display: flex;
+            justify-content: center;
+        }
+    }
+
 </style>

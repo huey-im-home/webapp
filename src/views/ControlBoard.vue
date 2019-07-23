@@ -1,11 +1,12 @@
 <template>
   <div id="light-controls">
     <h1>Huey I'm Home</h1>
-    <div class="light-groups">
+    <div class="light-groups" :class="{vertical: isVertical}">
       <light-group
            v-for="(group, groupId) in groups"
            v-if="group.lights.length > 0"
            :key="groupId"
+           :is-vertical="isVertical"
            :group="group"
            :lights="getGroupLights(groupId)"
            @ongroupchange="onGroupChange(groupId, $event)"
@@ -35,6 +36,10 @@
     // Wrap setGroupState() in a debouncer to avoid spamming the bridge on update
     private setGroupStateDebounced: any = debounce(this.setGroupState, this.debounceRateMs);
     private setLightStateDebounced: any = debounce(this.setLightState, this.debounceRateMs);
+
+    get isVertical(): boolean {
+      return window.innerWidth > 500;
+    }
 
     /**
      * Vue LIFECYCLE METHODS
@@ -196,12 +201,17 @@
 
 <style lang="scss">
   .light-groups {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: flex-start;
+    &.vertical {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+
+      .light-group {
+        flex-grow: 1;
+      }
+    }
   }
   .light-group {
     padding: 10px;
-    flex-grow: 1;
   }
 </style>
