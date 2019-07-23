@@ -1,13 +1,8 @@
 <template>
   <div class="light-control">
-    <input type="checkbox"
-           :checked="data.on"
-           v-on:change="handleToggleInput"
-    />
-
     <vue-slider v-model="data.bri"
                 direction="btt"
-                height="100%"
+                height="400px"
                 :min="0"
                 :max="254"
                 :tooltipFormatter="tooltipFormatter"
@@ -16,15 +11,32 @@
                 }"
                 @change="onRangeInput"
     />
-    <IroColorPicker
-        v-if="data.xy !== undefined"
-        :picker-options="{
-          color: rgbString,
-          width: 150,
-          wheelDirection: 'clockwise',
-          wheelAngle: -90
-        }"
-        v-on:change="onColorChange" />
+
+    <toggle-button :value="data.on"
+                   color="#82C7EB"
+                   :height="30"
+                   v-on:change="handleToggleInput"
+                   :sync="true"
+                   :labels="false"
+    />
+    <div v-if="data.xy !== undefined"
+         class="color-picker-button"
+         v-on:click="showColor">
+      <v-icon name="palette" scale="2" />
+    </div>
+
+    <transition name="fade">
+      <div class="color-picker-overlay"
+           v-if="showColorPicker"
+           v-on:click.self="onOverlayClick">
+        <div class="inner">
+          <IroColorPicker
+                  :picker-options=colorPickerOptions
+                  v-on:change="onColorChange" />
+        </div>
+
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -37,6 +49,8 @@
   export default class LightControl extends Vue {
     @Prop({default: {}})
     private state?: HueState;
+
+    private showColorPicker: boolean = false;
 
     // Internal vals
     private data: HueState = {
@@ -77,7 +91,16 @@
     }
 
     get gradientString(): string {
-      return `linear-gradient(${this.rgbString}, #EEE)`;
+      return `linear-gradient(${this.rgbString}, #CCC)`;
+    }
+
+    get colorPickerOptions(): any {
+      return {
+        color: this.rgbString,
+        width: window.innerWidth > 500 ? 500 : window.innerWidth - 30,
+        wheelDirection: 'clockwise',
+        wheelAngle: -90,
+      };
     }
 
     // Copy the props into our local data copy on load
@@ -104,10 +127,10 @@
     }
 
     // Handle the update of the On/Off toggle
-    private handleToggleInput($event: any) {
+    private handleToggleInput(event: any) {
       // Update the group and send back to the parent component
       const state: HueState = {
-        on: $event.target.checked,
+        on: event.value,
       };
       this.$emit('onstatechange', state);
     }
@@ -128,26 +151,39 @@
       };
       this.$emit('onstatechange', state);
     }
+
+    private showColor(): void {
+      console.log('show');
+      this.showColorPicker = true;
+    }
+
+    private onOverlayClick(): void {
+      console.log('on overlay');
+      this.showColorPicker = false;
+    }
   }
 </script>
 
 <style lang="scss" scoped>
   .light-control {
-    height: 400px;
     padding: 0 40px;
   }
 </style>
 <style lang="scss">
   .vue-slider {
-    margin: 60px auto;
+    margin: 0 auto 20px auto;
+    border-radius: 40px;
     width: 40px !important;
+    padding: 20px 0 !important;
+    background-color: #CCC;
+    box-sizing: border-box;
   }
   .vue-slider-rail {
     width: 40px;
     border-radius: 40px;
   }
   .vue-slider-process {
-    border-radius: 40px;
+    border-radius: 0;
     transition-property: height, bottom, background-color !important;
   }
   .vue-slider-dot {
@@ -160,6 +196,34 @@
     }
     .iro__slider {
       display: none !important;
+    }
+  }
+  .color-picker-button {
+    margin-top: 10px;
+    padding: 10px;
+    cursor: pointer;
+    transition: color 0.3s;
+    &:hover {
+      color: #000;
+    }
+  }
+  .color-picker-overlay {
+    position: fixed;
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.4);
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+
+    .inner {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      margin: auto;
+      transform: translateY(-50%);
     }
   }
 </style>

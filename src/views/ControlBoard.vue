@@ -1,6 +1,6 @@
 <template>
   <div id="light-controls">
-    <h1>Rooms</h1>
+    <h1>Huey I'm Home</h1>
     <div class="hue-groups">
       <div class="hue-group"
            v-for="(group, groupId) in groups"
@@ -9,14 +9,11 @@
         <p>{{group.name}}</p>
 
         <light-control
-
             :state="groups[groupId].action"
             @onstatechange="onGroupChange(groupId, $event)"
         />
       </div>
-
     </div>
-
   </div>
 </template>
 
@@ -136,9 +133,12 @@
     }
 
     private logoutCurrentBridge(): void {
+      this.$swal({
+        type: 'error',
+        text: 'Connection to bridge lost',
+      });
       this.$store.dispatch('logoutCurrentBridge');
     }
-
 
     /**
      * Start the Group and Light long pollers
@@ -159,8 +159,8 @@
 <style lang="scss" scoped>
   .hue-groups {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-wrap: nowrap;
+    align-items: flex-start;
   }
   .hue-group {
     padding: 10px;

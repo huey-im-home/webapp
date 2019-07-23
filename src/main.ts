@@ -3,10 +3,21 @@ import App from './App.vue';
 import router from './router';
 import store from './store';
 import VueSlider from 'vue-slider-component';
-import './registerServiceWorker';
+import VueSweetalert2 from 'vue-sweetalert2';
+import ToggleButton from 'vue-js-toggle-button';
 import 'vue-slider-component/theme/default.css';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import LightControl from '@/components/LightControl.vue';
 import IroColorPicker from '@/components/IroColorPicker.vue';
+
+import 'vue-awesome/icons/palette';
+import Icon from 'vue-awesome/components/Icon.vue';
+
+import './registerServiceWorker';
+
+Vue.use(VueSweetalert2);
+Vue.use(ToggleButton);
+Vue.component('v-icon', Icon);
 
 Vue.component('VueSlider', VueSlider);
 Vue.component('LightControl', LightControl);
