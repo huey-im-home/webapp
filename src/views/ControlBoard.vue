@@ -1,18 +1,16 @@
 <template>
   <div id="light-controls">
     <h1>Huey I'm Home</h1>
-    <div class="hue-groups">
-      <div class="hue-group"
+    <div class="light-groups">
+      <light-group
            v-for="(group, groupId) in groups"
            v-if="group.lights.length > 0"
-           :key="groupId">
-        <p>{{group.name}}</p>
-
-        <light-control
-            :state="groups[groupId].action"
-            @onstatechange="onGroupChange(groupId, $event)"
-        />
-      </div>
+           :key="groupId"
+           :group="group"
+           :lights="getGroupLights(groupId)"
+           @ongroupchange="onGroupChange(groupId, $event)"
+           @onlightchange="onLightChange"
+      />
     </div>
   </div>
 </template>
@@ -24,7 +22,7 @@
   import HueBridge from '@/hue-api/HueBridge';
 
   @Component
-  export default class LightControls extends Vue {
+  export default class ControlBoard extends Vue {
     private debounceRateMs: number = 400; // Throttle/debounce rate in millis
     private pollRateMs: number = 2000; // API Long Poll rate in millis
     private bridge?: HueBridge;
@@ -36,6 +34,7 @@
 
     // Wrap setGroupState() in a debouncer to avoid spamming the bridge on update
     private setGroupStateDebounced: any = debounce(this.setGroupState, this.debounceRateMs);
+    private setLightStateDebounced: any = debounce(this.setLightState, this.debounceRateMs);
 
     /**
      * Vue LIFECYCLE METHODS
@@ -76,22 +75,46 @@
 
     // Handler for the hue-group ongroupchange event
     private onGroupChange(groupId: string, state: HueState): void {
-      // Merge in the updated values
+      // Cancel long polling so it doesn't incorrectly update the group/light state while we are changing it.
+      // We will resume it in the debounce handler
+      this.stopLongPolling();
+
+      // Merge in the updated values to force an immediate UI update
       this.groups[groupId].action = {
         ...this.groups[groupId].action,
         ...state,
       };
-      // Cancel long polling so it doesn't incorrectly update the group/light state while we are changing it.
-      // We will resume it in the debounce handler
-      this.stopLongPolling();
+
       this.setGroupStateDebounced(groupId, state);
     }
 
     private setGroupState(groupId: string, state: HueState) {
-      // console.log('setGroupState', groupId, state);
       // Update the bridge with the new value
       if (this.bridge) {
         this.bridge.setGroupState(groupId, state);
+      }
+
+      this.startLongPolling(false);
+    }
+
+    // Handler for the light group onlightchange event
+    private onLightChange(lightId: number, state: HueState) {
+      // Cancel long polling so it doesn't incorrectly update the group/light state while we are changing it.
+      // We will resume it in the debounce handler
+      this.stopLongPolling();
+
+      // Merge in the updated values to force an immediate UI update
+      this.lights[lightId].state = {
+        ...this.lights[lightId].state,
+        ...state,
+      };
+
+      this.setLightStateDebounced(lightId, state);
+    }
+
+    private setLightState(lightId: string, state: HueState) {
+      if (this.bridge) {
+        this.bridge.setLightState(lightId, state);
       }
 
       this.startLongPolling(false);
@@ -132,6 +155,21 @@
       }
     }
 
+    /**
+     * For a given groupId, pluck out the lights associated with that group
+     * @param groupId: IF of the group to get lights for
+     * @return any: Object of lights, keyed by light ID
+     */
+    private getGroupLights(groupId: number): any {
+      const lights: any = {};
+      for (const lightId of this.groups[groupId].lights) {
+        if (this.lights.hasOwnProperty(lightId)) {
+          lights[lightId] = this.lights[lightId];
+        }
+      }
+      return lights;
+    }
+
     private logoutCurrentBridge(): void {
       this.$swal({
         type: 'error',
@@ -156,13 +194,13 @@
   }
 </script>
 
-<style lang="scss" scoped>
-  .hue-groups {
+<style lang="scss">
+  .light-groups {
     display: flex;
     flex-wrap: nowrap;
     align-items: flex-start;
   }
-  .hue-group {
+  .light-group {
     padding: 10px;
     flex-grow: 1;
   }

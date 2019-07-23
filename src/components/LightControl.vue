@@ -1,5 +1,6 @@
 <template>
   <div class="light-control">
+    <p>{{title}}</p>
     <vue-slider v-model="data.bri"
                 direction="btt"
                 height="400px"
@@ -20,15 +21,15 @@
                    :labels="false"
     />
     <div v-if="data.xy !== undefined"
-         class="color-picker-button"
-         v-on:click="showColor">
-      <v-icon name="palette" scale="2" />
+         class="color-picker-toggle"
+         v-on:click="showPickerOverlay">
+      <v-icon name="palette" scale="2.4" />
     </div>
 
     <transition name="fade">
       <div class="color-picker-overlay"
            v-if="showColorPicker"
-           v-on:click.self="onOverlayClick">
+           v-on:click.self="hidePickerOverlay">
         <div class="inner">
           <IroColorPicker
                   :picker-options=colorPickerOptions
@@ -49,6 +50,9 @@
   export default class LightControl extends Vue {
     @Prop({default: {}})
     private state?: HueState;
+
+    @Prop({default: ''})
+    private title?: string;
 
     private showColorPicker: boolean = false;
 
@@ -152,13 +156,11 @@
       this.$emit('onstatechange', state);
     }
 
-    private showColor(): void {
-      console.log('show');
+    private showPickerOverlay(): void {
       this.showColorPicker = true;
     }
 
-    private onOverlayClick(): void {
-      console.log('on overlay');
+    private hidePickerOverlay(): void {
       this.showColorPicker = false;
     }
   }
@@ -166,7 +168,7 @@
 
 <style lang="scss" scoped>
   .light-control {
-    padding: 0 40px;
+    padding: 0 5px;
   }
 </style>
 <style lang="scss">
@@ -198,13 +200,14 @@
       display: none !important;
     }
   }
-  .color-picker-button {
+
+  .color-picker-toggle {
     margin-top: 10px;
     padding: 10px;
     cursor: pointer;
     transition: color 0.3s;
     &:hover {
-      color: #000;
+      color: #999;
     }
   }
   .color-picker-overlay {

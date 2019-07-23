@@ -98,6 +98,10 @@ export default class HueBridge {
     return this.jsHueBridgeUser.setGroupState(groupId, state);
   }
 
+  public setLightState(lightId: string, state: HueState): Promise<any> {
+    return this.jsHueBridgeUser.setLightState(lightId, state);
+  }
+
   /**
    * Set the bridge username and instantiate the jsHue Bridge Object
    * @param username
