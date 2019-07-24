@@ -1,6 +1,19 @@
 <template>
-  <div id="light-controls">
-    <h1>Huey I'm Home</h1>
+  <div id="light-controls" :class="{vertical: isVertical, horizontal: !isVertical}">
+    <div class="top">
+      <h1>Huey I'm Home</h1>
+      <toggle-button :value="allLightsToggleState"
+                     class="all-lights-toggle"
+                     color="#82C7EB"
+                     :height="35"
+                     :width="70"
+                     v-on:change="toggleAllLights"
+                     :sync="true"
+                     :labels="false"
+      />
+    </div>
+
+
     <div class="light-groups" :class="{vertical: isVertical}">
       <light-group
            v-for="(group, groupId) in groups"
@@ -29,6 +42,7 @@
     private bridge?: HueBridge;
     private lights: any = {}; // Will be keyed by Group ID
     private groups: any = {}; // Will be keyed by Light ID
+    private allLightsToggleState: boolean = false;
 
     private getGroupsTimeoutHandle: number|undefined;
     private getLightsTimeoutHandle: number|undefined;
@@ -125,6 +139,41 @@
       this.startLongPolling(false);
     }
 
+    private toggleAllLights(event: any): void {
+      this.allLightsToggleState = event.value;
+
+      // We need to toggle ALL lights on/off in the api
+      const state: HueState = {
+        on: event.value,
+      };
+
+      this.stopLongPolling();
+
+      // Force update all Groups with the new setting
+      for (const groupId in this.groups) {
+        if (this.groups.hasOwnProperty(groupId)) {
+          this.groups[groupId].action = {
+            ...this.groups[groupId].action,
+            ...state,
+          };
+        }
+      }
+
+      for (const lightId in this.lights) {
+        if (this.lights.hasOwnProperty(lightId) && this.bridge) {
+          // Merge in the updated values to force an immediate UI update
+          this.lights[lightId].state = {
+            ...this.lights[lightId].state,
+            ...state,
+          };
+
+          this.bridge.setLightState(lightId, state);
+        }
+      }
+
+      this.startLongPolling(true);
+    }
+
     /**
      * HELPER METHODS
      */
@@ -150,6 +199,21 @@
         this.bridge.getLights()
           .then((lights: any) => {
             this.lights = lights;
+            // Update the 'all lights' master toggle state by checking if all lights are on
+            this.allLightsToggleState = false;
+            for (const lightId in lights) {
+              if (lights.hasOwnProperty(lightId)) {
+                if (lights[lightId].state.on) {
+                  // Make sure we sync with Vue so the UI updates
+                  this.$nextTick(() => {
+                    this.allLightsToggleState = true;
+                  });
+                  break;
+                }
+              }
+            }
+
+
             // We want to 'watch' the lights..
             this.getLightsTimeoutHandle = setTimeout(this.getLights, this.pollRateMs);
           })
@@ -200,6 +264,30 @@
 </script>
 
 <style lang="scss">
+  #light-controls {
+    .top {
+      h1,
+      .all-lights-toggle {
+        display: inline-block;
+        vertical-align: middle;
+      }
+    }
+    h1 {
+      margin-left: 10px;
+      margin-right: 10px;
+    }
+    &.vertical {
+      .all-lights-toggle {
+        margin-right: -75px;
+      }
+    }
+    .all-lights-toggle {
+
+      // position: absolute;
+      // top: 20px;
+      // right: 20px;
+    }
+  }
   .light-groups {
     &.vertical {
       display: flex;
