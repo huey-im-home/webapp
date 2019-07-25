@@ -21,7 +21,7 @@
            :key="groupId"
            :is-vertical="isVertical"
            :group="group"
-           :lights="getGroupLights(groupId)"
+           :lights="getLightsForGroup(groupId)"
            @ongroupchange="onGroupChange(groupId, $event)"
            @onlightchange="onLightChange"
       />
@@ -88,12 +88,12 @@
 
       return true;
     }
+
     /**
      * INSTANCE METHODS
      */
-
     // Handler for the hue-group ongroupchange event
-    private onGroupChange(groupId: string, state: HueState): void {
+    private onGroupChange(groupId: number, state: HueState): void {
       // Cancel long polling so it doesn't incorrectly update the group/light state while we are changing it.
       // We will resume it in the debounce handler
       this.stopLongPolling();
@@ -104,16 +104,35 @@
         ...state,
       };
 
-      this.setGroupStateDebounced(groupId, state);
+      // Also update the child lights with the new values
+      const groupLights = this.getLightsForGroup(groupId);
+      for (const lightId in groupLights) {
+        if (groupLights.hasOwnProperty(lightId)) {
+          // Not all lights support other values, such as color values, check before assigning these attributes
+          for (const stateKey in state) {
+            if (groupLights[lightId].state[stateKey] !== undefined) { // This light supports this attribute
+              groupLights[lightId].state[stateKey] = (state as any)[stateKey];
+            }
+          }
+        }
+      }
+
+      // Check that the master light toggle is in the correct state
+      this.updateAllLightsToggleState();
+
+      this.setGroupStateDebounced(groupId, state); // Will fire setGroupState() after debouncing
     }
 
+    // Set the Group State via the Bridge API
     private setGroupState(groupId: string, state: HueState) {
       // Update the bridge with the new value
       if (this.bridge) {
-        this.bridge.setGroupState(groupId, state);
+        this.bridge.setGroupState(groupId, state).then(() => {
+          this.startLongPolling(true);
+        });
+      } else {
+        this.startLongPolling(false);
       }
-
-      this.startLongPolling(false);
     }
 
     // Handler for the light group onlightchange event
@@ -128,17 +147,49 @@
         ...state,
       };
 
+      // We also need to update the parent group
+      const group = this.getGroupForLight(lightId);
+      // Note: This may not work perfectly with groups containing multiple lights
+      group.action = {
+        ...group.action,
+        ...state,
+      };
+
+      // Check that the master light toggle is in the correct state
+      this.updateAllLightsToggleState();
+
       this.setLightStateDebounced(lightId, state);
     }
 
+    // Set the Light State via the Bridge API
     private setLightState(lightId: string, state: HueState) {
       if (this.bridge) {
-        this.bridge.setLightState(lightId, state);
+        this.bridge.setLightState(lightId, state).then(() => {
+          this.startLongPolling(true);
+        });
+      } else {
+        this.startLongPolling(false);
       }
-
-      this.startLongPolling(false);
     }
 
+    // Update the master light toggle - if all lights are OFF, or if any are on
+    private updateAllLightsToggleState(): void {
+      // Update the 'all lights' master toggle state by checking if all lights are on
+      this.allLightsToggleState = false;
+      for (const lightId in this.lights) {
+        if (this.lights.hasOwnProperty(lightId)) {
+          if (this.lights[lightId].state.on) {
+            // Make sure we sync with Vue so the UI updates
+            this.$nextTick(() => {
+              this.allLightsToggleState = true;
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    // Handler for the Master Light Toggle switch
     private toggleAllLights(event: any): void {
       this.allLightsToggleState = event.value;
 
@@ -159,6 +210,10 @@
         }
       }
 
+      // Put the promises in an array so we can use Promise.all() to restart long polling after *all* updates
+      const promises: any[] = [];
+
+      // Update each light
       for (const lightId in this.lights) {
         if (this.lights.hasOwnProperty(lightId) && this.bridge) {
           // Merge in the updated values to force an immediate UI update
@@ -167,11 +222,13 @@
             ...state,
           };
 
-          this.bridge.setLightState(lightId, state);
+          promises.push(this.bridge.setLightState(lightId, state));
         }
       }
 
-      this.startLongPolling(true);
+      Promise.all(promises).then(() => {
+        this.startLongPolling(true);
+      });
     }
 
     /**
@@ -199,20 +256,9 @@
         this.bridge.getLights()
           .then((lights: any) => {
             this.lights = lights;
-            // Update the 'all lights' master toggle state by checking if all lights are on
-            this.allLightsToggleState = false;
-            for (const lightId in lights) {
-              if (lights.hasOwnProperty(lightId)) {
-                if (lights[lightId].state.on) {
-                  // Make sure we sync with Vue so the UI updates
-                  this.$nextTick(() => {
-                    this.allLightsToggleState = true;
-                  });
-                  break;
-                }
-              }
-            }
 
+            // Check that the master light toggle is in the correct state
+            this.updateAllLightsToggleState();
 
             // We want to 'watch' the lights..
             this.getLightsTimeoutHandle = setTimeout(this.getLights, this.pollRateMs);
@@ -226,10 +272,10 @@
 
     /**
      * For a given groupId, pluck out the lights associated with that group
-     * @param groupId: IF of the group to get lights for
+     * @param groupId: The ID of the group to get lights for
      * @return any: Object of lights, keyed by light ID
      */
-    private getGroupLights(groupId: number): any {
+    private getLightsForGroup(groupId: number): any {
       const lights: any = {};
       for (const lightId of this.groups[groupId].lights) {
         if (this.lights.hasOwnProperty(lightId)) {
@@ -237,6 +283,21 @@
         }
       }
       return lights;
+    }
+
+    /**
+     * For a given lightId, find the group that it belongs to
+     * @param lightId: The ID of the light to get a group for
+     * @return any: The Group that contains this light
+     */
+    private getGroupForLight(lightId: number): any|null {
+      for (const groupId in this.groups) {
+        if (this.groups.hasOwnProperty(groupId) &&
+                this.groups[groupId].lights.indexOf(lightId) > -1) {
+          return this.groups[groupId];
+        }
+      }
+      return null;
     }
 
     private logoutCurrentBridge(): void {
@@ -252,10 +313,12 @@
      * @param immediate - Immediately fire the functions?
      */
     private startLongPolling(immediate: boolean): void {
+      this.stopLongPolling(); // Make sure we don't create multiple callbacks
       this.getGroupsTimeoutHandle = setTimeout(this.getGroups, immediate ? 0 : this.pollRateMs);
       this.getLightsTimeoutHandle = setTimeout(this.getLights, immediate ? 0 : this.pollRateMs);
     }
 
+    // Stop long polling by clearing out any long poll timeouts
     private stopLongPolling(): void {
       clearTimeout(this.getGroupsTimeoutHandle);
       clearTimeout(this.getLightsTimeoutHandle);
@@ -280,12 +343,6 @@
       .all-lights-toggle {
         margin-right: -75px;
       }
-    }
-    .all-lights-toggle {
-
-      // position: absolute;
-      // top: 20px;
-      // right: 20px;
     }
   }
   .light-groups {
