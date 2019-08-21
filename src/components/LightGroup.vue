@@ -49,6 +49,14 @@
 
         private showLights: boolean = false;
 
+        private mounted(): void {
+            // Restore the user's last light toggle state
+            if (this.$store.getters.currentBridgeGroupToggleStates &&
+                this.$store.getters.currentBridgeGroupToggleStates[this.group.name] !== undefined) {
+                this.showLights = this.$store.getters.currentBridgeGroupToggleStates[this.group.name];
+            }
+        }
+
         /**
          * INSTANCE METHODS
          */
@@ -64,6 +72,10 @@
 
         private toggleLights(): void {
             this.showLights = !this.showLights;
+            this.$store.dispatch('setGroupLightToggleState', {
+                name: this.group.name,
+                state: this.showLights,
+            });
         }
     }
 </script>

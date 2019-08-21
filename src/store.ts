@@ -9,6 +9,7 @@ const vuexLocal = new VuexPersistence({
   key: 'huey_im_home',
   reducer: (state: any) => ({
     users: state.users,
+    groupToggleStates: state.groupToggleStates,
   }),
 });
 
@@ -16,6 +17,7 @@ export default new Vuex.Store({
   state: {
     users: {}, // Bridges that have been authenticated with, keyed by bridge ID, value is username
     currentBridge: null,
+    groupToggleStates: {}, // States of the group/light toggles, keyed by bridge ID, then by Group Name
   },
   mutations: {
     SET_USER(state: any, payload: any) {
@@ -26,6 +28,13 @@ export default new Vuex.Store({
     },
     SET_CURRENT_BRIDGE(state: any, bridge: object) {
       state.currentBridge = bridge;
+    },
+    SET_GROUP_LIGHT_TOGGLE_STATE(state: any, payload: any) {
+      const currentState = {
+        ...state.groupToggleStates[state.currentBridge.id],
+      };
+      currentState[payload.name] = payload.state;
+      Vue.set(state.groupToggleStates, state.currentBridge.id, currentState);
     },
   },
   actions: {
@@ -50,6 +59,13 @@ export default new Vuex.Store({
         store.commit('SET_CURRENT_BRIDGE', null);
       }
     },
+
+    setGroupLightToggleState(store, payload): void {
+      store.commit('SET_GROUP_LIGHT_TOGGLE_STATE', {
+        name: payload.name, // Group Name
+        state: payload.state, // (bool) Show group or individual lights
+      });
+    },
   },
   getters: {
     currentBridgeUser(state) {
@@ -61,6 +77,15 @@ export default new Vuex.Store({
           ip: state.currentBridge.ip,
           username: state.users[state.currentBridge.id],
         };
+      }
+
+      return null;
+    },
+
+    currentBridgeGroupToggleStates(state) {
+      if (state.currentBridge != null &&
+          state.groupToggleStates[state.currentBridge.id] !== undefined) {
+        return state.groupToggleStates[state.currentBridge.id];
       }
 
       return null;
