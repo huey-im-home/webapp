@@ -2,6 +2,7 @@ import Vue from 'vue';
 import App from './App.vue';
 import router from './router';
 import store from './store';
+import visibility from 'vue-visibility-change';
 import VueSlider from 'vue-slider-component';
 import VueSweetalert2 from 'vue-sweetalert2';
 import ToggleButton from 'vue-js-toggle-button';
@@ -19,6 +20,7 @@ import IroColorPicker from '@/components/IroColorPicker.vue';
 
 import './registerServiceWorker';
 
+Vue.use(visibility);
 Vue.use(VueSweetalert2);
 Vue.use(ToggleButton);
 Vue.component('v-icon', Icon);
