@@ -22,7 +22,6 @@
     }
 
     private visibilityChange(evt: any, hidden: any) {
-      console.log(evt, hidden);
       if (!hidden) {
         this.updateCheck();
       }

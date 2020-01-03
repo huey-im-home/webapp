@@ -55,7 +55,7 @@ export default new Vuex.Store({
     logoutCurrentBridge(store): void {
       // Remove the auth settings for the current bridge
       if (store.state.currentBridge != null) {
-        // store.commit('UNSET_USER', store.state.currentBridge.id);
+        store.commit('UNSET_USER', store.state.currentBridge.id);
         store.commit('SET_CURRENT_BRIDGE', null);
       }
     },
