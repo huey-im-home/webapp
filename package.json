@@ -10,7 +10,7 @@
   "dependencies": {
     "@jaames/iro": "^4.5.1",
     "core-js": "^2.6.5",
-    "jshue": "^2.1.1",
+    "jshue": "github:roccomuso/jshue#patch-1",
     "register-service-worker": "^1.6.2",
     "ts-debounce": "^1.0.0",
     "vue": "^2.6.10",
